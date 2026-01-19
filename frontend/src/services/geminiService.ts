@@ -30,6 +30,9 @@ export const generateMilestones = async (objectiveName: string, description: str
     });
 
     // Accessing text property directly
+    if (!response.text) {
+      throw new Error("Empty response from AI");
+    }
     return JSON.parse(response.text);
   } catch (error) {
     console.error("Erro ao gerar marcos com IA:", error);

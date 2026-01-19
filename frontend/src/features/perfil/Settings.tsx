@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, Target, Bell, Globe, Plus, Trash2, Shield, Mail, X, Lock, Eye, EyeOff } from 'lucide-react';
-import { MOCK_OBJECTIVES } from '../constants';
+import { MOCK_OBJECTIVES } from '../../../src/constants';
 
 interface UserItem {
   id: string;

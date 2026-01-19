@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { Plus, Search, Filter, ArrowUpCircle, ArrowDownCircle, MoreHorizontal, X } from 'lucide-react';
-import { Transaction, Objective, Currency } from '../types';
-import { CURRENCIES, CATEGORIES, EXCHANGE_RATES } from '../constants';
+import { Transaction, Objective, Currency } from '../../types/types';
+import { CURRENCIES, CATEGORIES, EXCHANGE_RATES } from '../../../src/constants';
 
 interface FinanceProps {
   objective: Objective;

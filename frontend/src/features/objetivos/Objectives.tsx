@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Target, CheckCircle2, Circle, Sparkles, Plus, Trash2, X } from 'lucide-react';
-import { Objective, Milestone } from '../types';
-import { generateMilestones } from '../services/geminiService';
+import { Objective, Milestone } from '../../types/types';
+import { generateMilestones } from '../../services/geminiService';
 
 interface ObjectivesProps {
   objective: Objective;

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Objective, Transaction } from '../types';
+import { Objective, Transaction } from '../../types/types';
 import { 
   TrendingUp, 
   TrendingDown, 

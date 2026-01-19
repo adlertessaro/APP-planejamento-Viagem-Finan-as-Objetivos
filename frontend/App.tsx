@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout';
-import Login from './pages/Login';
-import GoalSelection from './pages/GoalSelection';
-import Dashboard from './pages/Dashboard';
-import Finance from './pages/Finance';
-import Objectives from './pages/Objectives';
-import Documents from './pages/Documents';
-import Settings from './pages/Settings';
+import Layout from './src/components/Layout';
+import Login from './src/pages/Login';
+import GoalSelection from './src/pages/GoalSelection';
+import Dashboard from './src/pages/Dashboard';
+import Finance from './src/pages/Finance';
+import Objectives from './src/pages/Objectives';
+import Documents from './src/pages/Documents';
+import Settings from './src/pages/Settings';
 import { Objective } from './types';
 
 export default function App() {

@@ -1,5 +1,5 @@
 
-import { Objective, Currency } from './types';
+import { Objective, Currency } from './types/types';
 
 export const CURRENCIES: Currency[] = ['BRL', 'USD', 'EUR'];
 

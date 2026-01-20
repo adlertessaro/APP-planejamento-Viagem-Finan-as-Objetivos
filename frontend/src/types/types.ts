@@ -58,6 +58,9 @@ export interface User {
 }
 
 export interface Objective {
+  titulo: ReactNode;
+  valor_meta: any;
+  moeda_alvo: ReactNode;
   id: string;
   user_id: string;
   name: string;

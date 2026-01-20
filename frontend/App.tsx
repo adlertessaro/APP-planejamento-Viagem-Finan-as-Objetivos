@@ -23,8 +23,17 @@ const RotaObjetivoProtegida = ({ children }: { children: React.ReactNode }) => {
 // Rota que verifica se o usuário está logado
 
 const RotaAutenticada = ({ children, loggedIn }: { children: React.ReactNode; loggedIn: boolean | null }) => {
-  return loggedIn ? <>{children}</> : <Navigate to="/login" replace />;
+  if (loggedIn === false) return <Navigate to="/login" replace />;
+  return <>{children}</>;
 };
+
+
+const RotaPublica = ({ children, loggedIn }: { children: React.ReactNode; loggedIn: boolean | null }) => {
+  // Se o usuário já está logado, manda ele direto para a seleção
+  if (loggedIn === true) return <Navigate to="/selecionar-objetivo" replace />;
+  return <>{children}</>;
+};
+
 
 // Função para checar se o usuário está logado
 
@@ -70,9 +79,21 @@ function App() {
     <ObjetivoProvider>
       <HashRouter>
         <Routes>
-          <Route path="/login" element={<Login onLogin={handleLogin} />} />
-          <Route path="/selecionar-objetivo" element={<GoalSelection />} />
+          {/* LOGIN: Usa a RotaPublica */}
+          <Route path="/login" element={
+            <RotaPublica loggedIn={loggedIn}>
+              <Login onLogin={() => setLoggedIn(true)} />
+            </RotaPublica>
+          } />
 
+          {/* SELEÇÃO: Agora é protegida! Só entra se estiver logado */}
+          <Route path="/selecionar-objetivo" element={
+            <RotaAutenticada loggedIn={loggedIn}>
+              <GoalSelection />
+            </RotaAutenticada>
+          } />
+
+          {/* DASHBOARD e outros: Dupla proteção */}
           <Route path="/dashboard" element={
             <RotaAutenticada loggedIn={loggedIn}>
               <RotaObjetivoProtegida>
@@ -80,6 +101,8 @@ function App() {
               </RotaObjetivoProtegida>
             </RotaAutenticada>
           } />
+          
+          {/* Repita o padrão acima para /financeiro, /objetivos, etc */}
           <Route path="/financeiro" element={
             <RotaAutenticada loggedIn={loggedIn}>
               <RotaObjetivoProtegida>
@@ -87,27 +110,7 @@ function App() {
               </RotaObjetivoProtegida>
             </RotaAutenticada>
           } />
-          <Route path="/objetivos" element={
-            <RotaAutenticada loggedIn={loggedIn}>
-              <RotaObjetivoProtegida>
-                <Objectives />
-              </RotaObjetivoProtegida>
-            </RotaAutenticada>
-          } />
-          <Route path="/documentos" element={
-            <RotaAutenticada loggedIn={loggedIn}>
-              <RotaObjetivoProtegida>
-                <Documents />
-              </RotaObjetivoProtegida>
-            </RotaAutenticada>
-          } />
-          <Route path="/configuracoes" element={
-            <RotaAutenticada loggedIn={loggedIn}>
-              <RotaObjetivoProtegida>
-                <Settings />
-              </RotaObjetivoProtegida>
-            </RotaAutenticada>
-          } />
+
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </HashRouter>

@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import {supabase} from '../../api/supabase';
 
 interface LoginProps {
   onLogin: () => void;
@@ -13,21 +14,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    // Simulação de validação (Em um app real, isso seria via API/Supabase)
-    setTimeout(() => {
-      if (email === 'admin@fingoal.com' && password === 'admin123') {
-        onLogin();
-      } else {
-        setError('E-mail ou senha inválidos. Tente admin@fingoal.com / admin123');
-      }
+      if (!email || !password) {
+    setError('Por favor, preencha e-mail e senha.');
+    setIsLoading(false);
+    return;
+  }
+    if (!supabase) {
+      setError('Erro de conexão. Tente novamente mais tarde.');
       setIsLoading(false);
-    }, 1200);
-  };
+      return;
+    }
+
+  const {data, error} = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+    if (error) {
+      setError('E-mail ou senha inválidos. Tente novamente');
+      setIsLoading(false);
+    } else {
+      onLogin();
+    }
+  }
 
   return (
     <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-4">
@@ -35,9 +49,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         {/* Logo / Brand */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-600 rounded-[2rem] shadow-xl shadow-emerald-200 text-white font-black text-3xl mb-4 animate-bounce">
-            F
+            T
           </div>
-          <h1 className="text-3xl font-black text-emerald-900 tracking-tight">FinGoal Ecosystem</h1>
+          <h1 className="text-3xl font-black text-emerald-900 tracking-tight">Tessaro Planner</h1>
           <p className="text-emerald-600 font-medium">Seu futuro planejado em cada centavo.</p>
         </div>
 
@@ -110,24 +124,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  Entrar no Ecossistema
+                  Entrar
                   <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-emerald-50 text-center">
-            <p className="text-sm text-emerald-400 font-medium">
-              Acesso de teste: <span className="text-emerald-600 font-bold">admin@fingoal.com / admin123</span>
-            </p>
-          </div>
         </div>
 
         {/* Footer info */}
         <div className="mt-8 flex items-center justify-center gap-2 text-emerald-300">
-          <ShieldCheck size={16} />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Conexão Segura AES-256</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Desenvolvido por <a href="https://tessarolabs.com" target="_blank">Tessaro Labs</a></span>
         </div>
       </div>
     </div>

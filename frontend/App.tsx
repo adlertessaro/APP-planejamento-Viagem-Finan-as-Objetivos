@@ -11,48 +11,102 @@ import Documents from './src/features/documentos/Documents';
 import Settings from './src/features/perfil/Settings';
 import { Objective } from './src/types/types';
 import { ObjetivoProvider, useObjetivoAtivo } from './src/context/ObjetivoContext';
+import { supabase } from './src/api/supabase';
+
+// Rota que verifica se um objetivo está selecionado
 
 const RotaObjetivoProtegida = ({ children }: { children: React.ReactNode }) => {
   const { objetivoId } = useObjetivoAtivo();
-  if (!objetivoId) {
-    return <Navigate to="/selecionar-objetivo" replace />;
-  }
-
-  return <>{children}</>;
+  return objetivoId ? <>{children}</> : <Navigate to="/selecionar-objetivo" replace />;
 };
 
-function App() {
+// Rota que verifica se o usuário está logado
+
+const RotaAutenticada = ({ children, loggedIn }: { children: React.ReactNode; loggedIn: boolean | null }) => {
+  return loggedIn ? <>{children}</> : <Navigate to="/login" replace />;
+};
+
+// Função para checar se o usuário está logado
+
+const isLoggedIn = async (): Promise<boolean> => {
+  const { data } = await supabase.auth.getSession();
+  return data.session !== null;
+}
+
+// App Component
+
+function App() { 
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+
+  const checkLoginStatus = useCallback(async () => {
+    const status = await isLoggedIn();
+    setLoggedIn(status);
+  }, []);
+
+  useEffect(() => {
+    checkLoginStatus();
+  }
+, [checkLoginStatus]);
+
+  useEffect(() => {
+    const {data: { subscription }} = supabase.auth.onAuthStateChange((event, session) => {
+      setLoggedIn(session !== null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+    const handleLogin = () => {
+    setLoggedIn(true);
+  };
+
+    if (loggedIn === null) {
+    return <div>Carregando...</div>;
+  }
+
   return (
     <ObjetivoProvider>
       <HashRouter>
         <Routes>
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="/selecionar-objetivo" element={<GoalSelection />} />
 
           <Route path="/dashboard" element={
-            <RotaObjetivoProtegida>
-              <Dashboard />
-            </RotaObjetivoProtegida>
+            <RotaAutenticada loggedIn={loggedIn}>
+              <RotaObjetivoProtegida>
+                <Dashboard />
+              </RotaObjetivoProtegida>
+            </RotaAutenticada>
           } />
           <Route path="/financeiro" element={
-            <RotaObjetivoProtegida>
-              <Finance />
-            </RotaObjetivoProtegida>
+            <RotaAutenticada loggedIn={loggedIn}>
+              <RotaObjetivoProtegida>
+                <Finance />
+              </RotaObjetivoProtegida>
+            </RotaAutenticada>
           } />
           <Route path="/objetivos" element={
-            <RotaObjetivoProtegida>
-              <Objectives />
-            </RotaObjetivoProtegida>
+            <RotaAutenticada loggedIn={loggedIn}>
+              <RotaObjetivoProtegida>
+                <Objectives />
+              </RotaObjetivoProtegida>
+            </RotaAutenticada>
           } />
           <Route path="/documentos" element={
-            <RotaObjetivoProtegida>
-              <Documents />
-            </RotaObjetivoProtegida>
+            <RotaAutenticada loggedIn={loggedIn}>
+              <RotaObjetivoProtegida>
+                <Documents />
+              </RotaObjetivoProtegida>
+            </RotaAutenticada>
           } />
           <Route path="/configuracoes" element={
-            <RotaObjetivoProtegida>
-              <Settings />
-            </RotaObjetivoProtegida>
+            <RotaAutenticada loggedIn={loggedIn}>
+              <RotaObjetivoProtegida>
+                <Settings />
+              </RotaObjetivoProtegida>
+            </RotaAutenticada>
           } />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

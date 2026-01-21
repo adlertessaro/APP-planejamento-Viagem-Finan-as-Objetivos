@@ -1,12 +1,11 @@
-
-import React from 'react';
-import { Objective, Transaction } from '../../types/types';
+import React, { useEffect, useState } from 'react';
+import { Objective, Transaction } from '../../types/types'; // Ajuste o caminho se necessário
 import { 
   TrendingUp, 
-  TrendingDown, 
   Calendar, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -20,44 +19,126 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { supabase } from '../../api/supabase';
+import { useObjetivoAtivo } from '../../context/ObjetivoContext';
 
-interface DashboardProps {
-  objective: Objective;
-}
+const Dashboard: React.FC = () => {
+  const { objetivoId } = useObjetivoAtivo(); 
+  const [objective, setObjective] = useState<Objective | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Estados para dados dos gráficos e cálculos
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [totalPoupado, setTotalPoupado] = useState(0);
+  const [faltam, setFaltam] = useState(0);
 
-const Dashboard: React.FC<DashboardProps> = ({ objective }) => {
-  // Mock data for charts
-  const historyData = [
-    { name: 'Jan', value: 2400 },
-    { name: 'Fev', value: 3500 },
-    { name: 'Mar', value: 3200 },
-    { name: 'Abr', value: 4800 },
-    { name: 'Mai', value: 5100 },
-    { name: 'Jun', value: 7800 },
-  ];
+  useEffect(() => {
+    if (objetivoId) {
+      fechDadosObjetivo(objetivoId);
+    } else {
+      setLoading(false);
+    }
+  }, [objetivoId]);
 
-  const categoryData = [
-    { name: 'Acomodação', value: 40, color: '#059669' },
-    { name: 'Transporte', value: 30, color: '#10b981' },
-    { name: 'Visto/Docs', value: 15, color: '#34d399' },
-    { name: 'Lazer', value: 15, color: '#6ee7b7' },
-  ];
+  const fechDadosObjetivo = async (id: string) => {
+    setLoading(true);
+    try {
+      // 1. Busca o Objetivo
+      const { data: objData, error: objError } = await supabase
+        .from('objetivos')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-  const currentSavings = 12500;
-  const progressPercent = Math.min(Math.round((currentSavings / objective.target_amount) * 100), 100);
+      if (objError) throw objError;
+
+      // 2. Busca as Transações
+      const { data: transData, error: transError } = await supabase
+        .from('transacoes')
+        .select('*')
+        .eq('objetivo_id', id);
+
+      if (transError) throw transError;
+
+      const transactions = (transData as Transaction[]) || [];
+
+      // --- PROCESSAMENTO PARA O LAYOUT ---
+      
+      // Cálculos de Saldo
+      const entradas = transactions.filter(t => t.tipo === 'income').reduce((acc, t) => acc + Number(t.valor), 0);
+      const saidas = transactions.filter(t => t.tipo === 'expense').reduce((acc, t) => acc + Number(t.valor), 0);
+      const saldoReal = entradas - saidas;
+      
+      setTotalPoupado(saldoReal);
+      setFaltam(Math.max(Number(objData.valor_meta) - saldoReal, 0));
+      setObjective(objData);
+
+      // Histórico de Poupança (Agrupado por data para o AreaChart)
+      if (transactions.length > 0) {
+        const history = transactions
+          .sort((a, b) => new Date(a.data_transacao).getTime() - new Date(b.data_transacao).getTime())
+          .map(t => ({
+            name: new Date(t.data_transacao).toLocaleDateString('pt-BR', { month: 'short' }),
+            value: Number(t.valor)
+          }));
+        setHistoryData(history);
+      } else {
+        setHistoryData([{ name: 'Início', value: 0 }]);
+      }
+
+      // Distribuição de Gastos (PieChart)
+      const categoriesMap = transactions
+        .filter(t => t.tipo === 'expense')
+        .reduce((acc: any, t) => {
+          acc[t.categoria] = (acc[t.categoria] || 0) + 1;
+          return acc;
+        }, {});
+
+      const colors = ['#059669', '#10b981', '#34d399', '#6ee7b7'];
+      const formattedCats = Object.keys(categoriesMap).map((name, i) => ({
+        name,
+        value: categoriesMap[name],
+        color: colors[i % colors.length]
+      }));
+      setCategoryData(formattedCats);
+
+    } catch (error) {
+      console.error('Erro ao carregar dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center p-20 text-emerald-600">
+      <Loader2 className="animate-spin mb-4" size={40} />
+      <p className="font-bold">Carregando dados...</p>
+    </div>
+  );
+
+  if (!objective) return (
+    <div className="p-12 text-center bg-white rounded-[2.5rem] border border-emerald-100">
+      <p className="text-emerald-600 font-bold">Nenhum objetivo selecionado.</p>
+    </div>
+  );
+
+  const progressPercent = Math.min(Math.round((totalPoupado / objective.valor_meta) * 100), 100);
 
   return (
     <div className="space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-emerald-900">{objective.name}</h1>
+          <h1 className="text-3xl font-bold text-emerald-900">{objective.titulo}</h1>
           <p className="text-emerald-600">Visão geral do seu progresso financeiro</p>
         </div>
         <div className="bg-white px-4 py-2 rounded-2xl border border-emerald-100 shadow-sm flex items-center gap-3">
           <Calendar className="text-emerald-500" size={20} />
           <div>
             <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Meta Final</p>
-            <p className="text-sm font-semibold text-emerald-900">{new Date(objective.deadline).toLocaleDateString('pt-BR')}</p>
+            <p className="text-sm font-semibold text-emerald-900">
+                {objective.prazo_meta ? new Date(objective.prazo_meta + 'T00:00:00').toLocaleDateString('pt-BR') : '---'}
+            </p>
           </div>
         </div>
       </header>
@@ -70,7 +151,9 @@ const Dashboard: React.FC<DashboardProps> = ({ objective }) => {
           </div>
           <div>
             <p className="text-sm font-medium text-emerald-400">Total Poupado</p>
-            <h3 className="text-2xl font-bold text-emerald-900">R$ 12.500,00</h3>
+            <h3 className="text-2xl font-bold text-emerald-900">
+                {totalPoupado.toLocaleString('pt-BR', { style: 'currency', currency: objective.moeda_alvo || 'BRL' })}
+            </h3>
           </div>
         </div>
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-emerald-100 flex items-center gap-4">
@@ -79,7 +162,9 @@ const Dashboard: React.FC<DashboardProps> = ({ objective }) => {
           </div>
           <div>
             <p className="text-sm font-medium text-amber-400">Faltam</p>
-            <h3 className="text-2xl font-bold text-amber-900">R$ 37.500,00</h3>
+            <h3 className="text-2xl font-bold text-amber-900">
+                {faltam.toLocaleString('pt-BR', { style: 'currency', currency: objective.moeda_alvo || 'BRL' })}
+            </h3>
           </div>
         </div>
         <div className="bg-emerald-600 p-6 rounded-3xl shadow-lg shadow-emerald-100 text-white flex items-center gap-4">
@@ -139,12 +224,9 @@ const Dashboard: React.FC<DashboardProps> = ({ objective }) => {
               <PieChart>
                 <Pie
                   data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
+                  cx="50%" cy="50%"
+                  innerRadius={60} outerRadius={80}
+                  paddingAngle={5} dataKey="value"
                 >
                   {categoryData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -155,15 +237,17 @@ const Dashboard: React.FC<DashboardProps> = ({ objective }) => {
             </ResponsiveContainer>
           </div>
           <div className="space-y-3 mt-4">
-            {categoryData.map((cat, idx) => (
+            {categoryData.length > 0 ? categoryData.map((cat, idx) => (
               <div key={idx} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
                   <span className="text-sm text-emerald-700 font-medium">{cat.name}</span>
                 </div>
-                <span className="text-sm font-bold text-emerald-900">{cat.value}%</span>
+                <span className="text-sm font-bold text-emerald-900">{cat.value} trans.</span>
               </div>
-            ))}
+            )) : (
+                <p className="text-xs text-center text-emerald-400">Nenhuma despesa registrada</p>
+            )}
           </div>
         </div>
       </div>

@@ -1,8 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Search, Filter, ArrowUpCircle, ArrowDownCircle, MoreHorizontal, X } from 'lucide-react';
 import { Transaction, Objective, Currency } from '../../types/types';
 import { CURRENCIES, CATEGORIES, EXCHANGE_RATES } from '../../../src/constants';
+import { supabase } from '../../api/supabase';
+import { data } from 'react-router-dom';
 
 interface FinanceProps {
   objective: Objective;
@@ -11,13 +13,8 @@ interface FinanceProps {
 const Finance: React.FC<FinanceProps> = ({ objective }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewCurrency, setViewCurrency] = useState<Currency>('BRL');
-  
-  // Mock list with initial data
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: '1', objective_id: objective.id, type: 'income', amount: 5000, currency: 'BRL', converted_amount: 5000, category: 'Salário', description: 'Economia do mês', date: '2024-06-01' },
-    { id: '2', objective_id: objective.id, type: 'expense', amount: 150, currency: 'EUR', converted_amount: 907.5, category: 'Documentação', description: 'Taxa Visto', date: '2024-06-05' },
-    { id: '3', objective_id: objective.id, type: 'income', amount: 200, currency: 'USD', converted_amount: 1090, category: 'Extra', description: 'Freelance', date: '2024-06-10' },
-  ]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [newTx, setNewTx] = useState({
     description: '',
@@ -27,47 +24,92 @@ const Finance: React.FC<FinanceProps> = ({ objective }) => {
     category: 'Outros'
   });
 
-  const formatCurrency = (val: number, cur: Currency) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: cur }).format(val);
+  useEffect(() => {
+    if (objective?.id) fechTransactions();
+  }, [objective?.id]);
+
+  const fechTransactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transacoes')
+        .select('*')
+        .eq('objetivo_id', objective.id);
+
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (error) {
+      console.error('Erro ao buscar transações:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  //salvar transação no bando
+  const handleAddTransaction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amountNum = parseFloat(newTx.amount.replace(',', '.'));
+
+    console.log("Dados para inserção:", {
+    descricao: newTx.description,
+    valor: amountNum,
+    objetivo_id: objective?.id
+  });
+
+    if (!newTx.description || isNaN(amountNum) || !objective?.id) return;
+
+    try {
+      const currentExchangeRate = EXCHANGE_RATES[newTx.currency] || 1;
+      const { data, error } = await supabase
+        .from('transacoes')
+        .insert({
+          objetivo_id: objective.id,
+          valor: amountNum,
+          tipo: newTx.type,
+          moeda: newTx.currency,
+          categoria: newTx.category,
+          descricao: newTx.description,
+          data_transacao: new Date().toISOString().split('T')[0],
+          criado_em: new Date().toISOString(),
+          taxa_cambio: currentExchangeRate,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      //atualizar valores exibidos
+      setTransactions([data, ...transactions]);
+        setNewTx({ description: '', amount: '', currency: 'BRL', type: 'income', category: 'Outros' });
+        setShowAddModal(false);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        alert('Erro ao adicionar transação: ' + errorMessage);
+        console.error('Erro ao adicionar transação:', error);
+      }
+  };
+
+  const formatCurrency = (val: number, cur: Currency) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: cur,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(val);
+    };
+
   const calculateConverted = (amount: number, from: Currency, to: Currency) => {
-    // Basic logic: to BRL first, then to target
     const amountInBRL = amount * EXCHANGE_RATES[from];
     return amountInBRL / EXCHANGE_RATES[to];
   };
 
-  const handleAddTransaction = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amountNum = parseFloat(newTx.amount);
-    if (!newTx.description || isNaN(amountNum)) return;
-
-    const addedTx: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
-      objective_id: objective.id,
-      type: newTx.type,
-      amount: amountNum,
-      currency: newTx.currency,
-      converted_amount: amountNum * EXCHANGE_RATES[newTx.currency], // For storage in BRL
-      category: newTx.category,
-      description: newTx.description,
-      date: new Date().toISOString().split('T')[0]
-    };
-
-    setTransactions([addedTx, ...transactions]);
-    setNewTx({ description: '', amount: '', currency: 'BRL', type: 'income', category: 'Outros' });
-    setShowAddModal(false);
-  };
-
   // Totals based on current view currency
   const totalBalance = transactions.reduce((acc, tx) => {
-    const val = calculateConverted(tx.amount, tx.currency, viewCurrency);
-    return tx.type === 'income' ? acc + val : acc - val;
+    const val = calculateConverted(tx.valor, tx.moeda as Currency, viewCurrency);
+    return tx.tipo === 'income' ? acc + val : acc - val;
   }, 0);
 
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, tx) => acc + calculateConverted(tx.amount, tx.currency, viewCurrency), 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, tx) => acc + calculateConverted(tx.amount, tx.currency, viewCurrency), 0);
-
+  const totalIncome = transactions.filter(t => t.tipo === 'income').reduce((acc, tx) => acc + calculateConverted(tx.valor, tx.moeda as Currency, viewCurrency), 0);
+  const totalExpense = transactions.filter(t => t.tipo === 'expense').reduce((acc, tx) => acc + calculateConverted(tx.valor, tx.moeda as Currency, viewCurrency), 0);
   const flags: Record<Currency, string> = { BRL: '🇧🇷', USD: '🇺🇸', EUR: '🇪🇺' };
 
   return (
@@ -175,30 +217,30 @@ const Finance: React.FC<FinanceProps> = ({ objective }) => {
           <tbody className="divide-y divide-emerald-50">
             {transactions.map((tx) => (
               <tr key={tx.id} className="hover:bg-emerald-50/30 transition-colors group">
-                <td className="px-6 py-4 text-sm font-medium text-emerald-600">{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
+                <td className="px-6 py-4 text-sm font-medium text-emerald-600">{new Date(tx.data_transacao).toLocaleDateString('pt-BR')}</td>
                 <td className="px-6 py-4">
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold text-emerald-900">{tx.description}</span>
-                    <span className={`text-[10px] font-bold uppercase ${tx.type === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {tx.type === 'income' ? 'Entrada' : 'Saída'}
+                    <span className="text-sm font-bold text-emerald-900">{tx.descricao}</span>
+                    <span className={`text-[10px] font-bold uppercase ${tx.tipo === 'income' ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {tx.tipo === 'income' ? 'Entrada' : 'Saída'}
                     </span>
                   </div>
                 </td>
                 <td className="px-6 py-4">
                   <span className="px-3 py-1 bg-emerald-100/50 text-emerald-600 text-xs font-bold rounded-full">
-                    {tx.category}
+                    {tx.categoria}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right font-semibold text-emerald-700">
                   <div className="flex items-center justify-end gap-1">
-                    <span>{flags[tx.currency]}</span>
-                    <span>{formatCurrency(tx.amount, tx.currency)}</span>
+                    <span>{flags[tx.moeda as Currency]}</span>
+                    <span>{formatCurrency(tx.valor, tx.moeda as Currency)}</span>
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right font-black text-emerald-900">
                   <span className={tx.type === 'expense' ? 'text-red-600' : 'text-emerald-600'}>
                     {tx.type === 'expense' ? '- ' : '+ '}
-                    {formatCurrency(calculateConverted(tx.amount, tx.currency, viewCurrency), viewCurrency)}
+                    {formatCurrency(calculateConverted(tx.valor, tx.moeda as Currency, viewCurrency), viewCurrency)}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
@@ -260,14 +302,36 @@ const Finance: React.FC<FinanceProps> = ({ objective }) => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-emerald-400 uppercase ml-2 mb-1 block">Valor</label>
-                    <input 
-                      type="number" 
-                      required
-                      placeholder="0,00"
-                      value={newTx.amount}
-                      onChange={e => setNewTx({...newTx, amount: e.target.value})}
+                      <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    placeholder="0,00"
+                    value={newTx.amount}
+                    onChange={(e) => {
+                      let v = e.target.value.replace(/\D/g, ''); // só números
+
+                      if (v === '') {
+                        setNewTx({...newTx, amount: ''});
+                        return;
+                      }
+
+                      // remove zeros à esquerda (mas deixa um se tudo for zero)
+                      v = v.replace(/^0+(?=\d)/, '');
+
+                      if (v.length === 1) {
+                        setNewTx({...newTx, amount: `0,0${v}`});
+                      } else if (v.length === 2) {
+                        setNewTx({...newTx, amount: `0,${v}`});
+                      } else {
+                        const inteiro = v.slice(0, -2);
+                        const decimal = v.slice(-2);
+                        setNewTx({...newTx, amount: `${inteiro},${decimal}`});
+                      }
+                    }}
                       className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4 text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                    />
+                  />
+
                   </div>
                   <div>
                     <label className="text-xs font-bold text-emerald-400 uppercase ml-2 mb-1 block">Moeda</label>

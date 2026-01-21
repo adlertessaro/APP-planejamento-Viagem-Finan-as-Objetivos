@@ -1,53 +1,4 @@
-
-/**
- * DATABASE SCHEMA (SQL for Supabase)
- * 
- * -- 1. Objectives Table
- * CREATE TABLE objectives (
- *   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
- *   user_id UUID REFERENCES auth.users(id),
- *   name TEXT NOT NULL,
- *   target_amount DECIMAL NOT NULL,
- *   target_currency TEXT DEFAULT 'BRL',
- *   deadline DATE,
- *   description TEXT,
- *   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
- * );
- * 
- * -- 2. Milestones Table (AI Generated or Manual)
- * CREATE TABLE milestones (
- *   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
- *   objective_id UUID REFERENCES objectives(id) ON DELETE CASCADE,
- *   title TEXT NOT NULL,
- *   description TEXT,
- *   target_date DATE,
- *   is_completed BOOLEAN DEFAULT FALSE,
- *   order_index INTEGER
- * );
- * 
- * -- 3. Transactions Table
- * CREATE TABLE transactions (
- *   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
- *   objective_id UUID REFERENCES objectives(id) ON DELETE CASCADE,
- *   type TEXT CHECK (type IN ('income', 'expense')),
- *   amount DECIMAL NOT NULL,
- *   currency TEXT NOT NULL, -- BRL, USD, EUR
- *   converted_amount DECIMAL, -- Amount in target_currency at time of transaction
- *   category TEXT,
- *   description TEXT,
- *   date DATE DEFAULT CURRENT_DATE
- * );
- * 
- * -- 4. Documents Table
- * CREATE TABLE documents (
- *   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
- *   objective_id UUID REFERENCES objectives(id) ON DELETE CASCADE,
- *   name TEXT NOT NULL,
- *   file_url TEXT NOT NULL,
- *   file_type TEXT,
- *   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
- * );
- */
+import { ReactNode } from "react";
 
 export type Currency = 'BRL' | 'USD' | 'EUR';
 
@@ -58,17 +9,17 @@ export interface User {
 }
 
 export interface Objective {
-  titulo: ReactNode;
-  valor_meta: any;
-  moeda_alvo: ReactNode;
   id: string;
-  user_id: string;
-  name: string;
-  target_amount: number;
-  target_currency: Currency;
-  deadline: string;
-  description?: string;
-  created_at: string;
+  usuario_id: string;
+  titulo: string;
+  tipo?: string;
+  moeda_alvo: Currency;
+  valor_meta: number;
+  status: string;
+  criado_em: string;
+  atualizado_at: string;
+  descricao?: string;
+  prazo_meta?: string;
 }
 
 export interface Milestone {
@@ -82,15 +33,18 @@ export interface Milestone {
 }
 
 export interface Transaction {
+  type: string;
+  date: string | number | Date;
   id: string;
-  objective_id: string;
-  type: 'income' | 'expense';
-  amount: number;
-  currency: Currency;
-  converted_amount: number; // In base currency of objective
-  category: string;
-  description: string;
-  date: string;
+  objetivo_id: string;
+  valor: number;
+  moeda: Currency;
+  taxa_cambio: number;
+  tipo: 'income' | 'expense';
+  categoria: string;
+  descricao: string;
+  data_transacao: string;
+  criado_em: string;
 }
 
 export interface Document {

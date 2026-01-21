@@ -8,6 +8,9 @@ import Finance from './src/features/financeiro/Finance';
 // Importe os demais componentes conforme necessário
 import { ObjetivoProvider, useObjetivoAtivo } from './src/context/ObjetivoContext';
 import { supabase } from './src/api/supabase';
+import { useState as useLocalState } from 'react';
+import { Objective } from './src/types/types';
+import Documents from './src/features/documentos/Documents';
 
 // --- COMPONENTES DE PROTEÇÃO DE ROTA ---
 
@@ -72,7 +75,6 @@ const InternalLayout = ({ children }: { children: React.ReactNode }) => {
 // --- COMPONENTE PRINCIPAL ---
 
 // Loader component to fetch Objective by id and render Finance
-import { useState as useLocalState } from 'react';
 
 function FinanceLoader({ objetivoId }: { objetivoId: string | null }) {
   const [objective, setObjective] = useLocalState<Objective | null>(null);
@@ -93,10 +95,36 @@ function FinanceLoader({ objetivoId }: { objetivoId: string | null }) {
   }, [objetivoId]);
 
   if (loading || !objective) {
-    return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold">Carregando objetivo...</div>;
+    return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold">Carregando...</div>;
   }
 
   return <Finance objective={objective} />;
+}
+
+function DocumentsLoader({ objetivoId }: { objetivoId: string | null }) {
+  const [objective, setObjective] = useState<Objective | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchObjective = async () => {
+      if (!objetivoId) return;
+      const { data } = await supabase
+        .from('objetivos')
+        .select('*')
+        .eq('id', objetivoId)
+        .single();
+      setObjective(data as Objective);
+      setLoading(false);
+    };
+    fetchObjective();
+  }, [objetivoId]);
+
+  if (loading || !objective) {
+    return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold">Carregando...</div>;
+  }
+
+  // Adapte para o tipo esperado em Documents
+  return <Documents objetivoSelecionado={{ id: objective.id, nome: objective.titulo }} />;
 }
 
 function AppContent() {
@@ -150,13 +178,32 @@ function AppContent() {
         </RotaAutenticada>
       } />
 
-      <Route path="/finance" element={
+      {/* Rota Financeiro com Loader */}
+      <Route path="/financeiro" element={
         <RotaAutenticada loggedIn={loggedIn}>
           <RotaObjetivoProtegida>
             <InternalLayout>
               <FinanceLoader objetivoId={objetivoId} />
             </InternalLayout>
           </RotaObjetivoProtegida>
+        </RotaAutenticada>
+      } />
+
+      <Route path="/documentos" element={
+        <RotaAutenticada loggedIn={loggedIn}>
+          <RotaObjetivoProtegida>
+            <InternalLayout>
+              <DocumentsLoader objetivoId={objetivoId} />
+            </InternalLayout>
+          </RotaObjetivoProtegida>
+        </RotaAutenticada>
+      } />
+
+      <Route path="/marcos" element={
+        <RotaAutenticada loggedIn={loggedIn}>
+          <InternalLayout>
+            <GoalSelection />
+          </InternalLayout>
         </RotaAutenticada>
       } />
 

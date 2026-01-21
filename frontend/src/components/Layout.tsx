@@ -26,9 +26,9 @@ const Layout: React.FC<LayoutProps> = ({ children, selectedObjectiveName, onClea
 
   const navItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
-    { path: '/finance', icon: <Wallet size={20} />, label: 'Financeiro' },
-    { path: '/objectives', icon: <Target size={20} />, label: 'Objetivo' },
-    { path: '/documents', icon: <FileText size={20} />, label: 'Documentos' },
+    { path: '/financeiro', icon: <Wallet size={20} />, label: 'Financeiro' },
+    { path: '/marcos', icon: <Target size={20} />, label: 'Milestones' },
+    { path: '/documentos', icon: <FileText size={20} />, label: 'Documentos' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Ajustes' },
   ];
 

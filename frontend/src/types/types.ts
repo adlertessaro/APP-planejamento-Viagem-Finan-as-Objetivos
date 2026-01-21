@@ -49,9 +49,12 @@ export interface Transaction {
 
 export interface Document {
   id: string;
-  objective_id: string;
-  name: string;
-  file_url: string;
-  file_type: string;
-  created_at: string;
+  objetivo_id: string;
+  nome: string;
+  tipo: 'PDF' | 'Image' | 'Pendente';
+  categoria: string;
+  conteudo_base64: string | null;
+  tamanho?: string;
+  status: 'pendente' | 'concluido';
+  criado_em: string;
 }

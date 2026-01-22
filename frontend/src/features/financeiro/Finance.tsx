@@ -4,7 +4,6 @@ import { Plus, Search, Filter, ArrowUpCircle, ArrowDownCircle, MoreHorizontal, X
 import { Transaction, Objective, Currency } from '../../types/types';
 import { CURRENCIES, CATEGORIES, EXCHANGE_RATES } from '../../../src/constants';
 import { supabase } from '../../api/supabase';
-import { data } from 'react-router-dom';
 
 interface FinanceProps {
   objective: Objective;

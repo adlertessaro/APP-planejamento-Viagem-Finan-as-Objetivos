@@ -5,12 +5,14 @@ import Login from './src/features/auth/Login';
 import GoalSelection from './src/features/objetivos/GoalSelection';
 import Dashboard from './src/features/dashboard/Dashboard';
 import Finance from './src/features/financeiro/Finance';
-// Importe os demais componentes conforme necessário
 import { ObjetivoProvider, useObjetivoAtivo } from './src/context/ObjetivoContext';
 import { supabase } from './src/api/supabase';
 import { useState as useLocalState } from 'react';
 import { Objective } from './src/types/types';
 import Documents from './src/features/documentos/Documents';
+import Settings from './src/features/perfil/Settings';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import Objectives from './src/features/objetivos/Objectives';
 
 // --- COMPONENTES DE PROTEÇÃO DE ROTA ---
 
@@ -36,20 +38,27 @@ const InternalLayout = ({ children }: { children: React.ReactNode }) => {
   const [objectiveName, setObjectiveName] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Busca o nome do objetivo para exibir no Sidebar
   useEffect(() => {
     const fetchObjectiveName = async () => {
-      if (objetivoId) {
-        const { data } = await supabase
-          .from('objetivos')
-          .select('titulo')
-          .eq('id', objetivoId)
-          .single();
-        if (data) setObjectiveName(data.titulo);
+      if (!objetivoId) return;
+
+      const { data, error } = await supabase
+        .from('objetivos')
+        .select('titulo')
+        .eq('id', objetivoId)
+        .maybeSingle(); // Não gera erro se encontrar 0 linhas
+
+      if (error || !data) {
+        // Se o ID for inválido ou não existir no banco, limpa e redireciona
+        setObjetivoId(null);
+        navigate('/selecionar-objetivo');
+        return;
       }
+      
+      setObjectiveName(data.titulo);
     };
     fetchObjectiveName();
-  }, [objetivoId]);
+  }, [objetivoId, setObjetivoId, navigate]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -72,6 +81,8 @@ const InternalLayout = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+const queryClient = new QueryClient();
+
 // --- COMPONENTE PRINCIPAL ---
 
 // Loader component to fetch Objective by id and render Finance
@@ -79,20 +90,28 @@ const InternalLayout = ({ children }: { children: React.ReactNode }) => {
 function FinanceLoader({ objetivoId }: { objetivoId: string | null }) {
   const [objective, setObjective] = useLocalState<Objective | null>(null);
   const [loading, setLoading] = useLocalState(true);
+  const { setObjetivoId } = useObjetivoAtivo(); // Importe para limpar se necessário
 
   useEffect(() => {
     const fetchObjective = async () => {
       if (!objetivoId) return;
-      const { data } = await supabase
+      
+      const { data, error } = await supabase
         .from('objetivos')
         .select('*')
         .eq('id', objetivoId)
-        .single();
+        .maybeSingle();
+
+      if (error || !data) {
+        setObjetivoId(null);
+        return;
+      }
+
       setObjective(data as Objective);
       setLoading(false);
     };
     fetchObjective();
-  }, [objetivoId]);
+  }, [objetivoId, setObjetivoId]);
 
   if (loading || !objective) {
     return <div className="flex h-screen items-center justify-center text-emerald-600 font-bold">Carregando...</div>;
@@ -172,7 +191,7 @@ function AppContent() {
         <RotaAutenticada loggedIn={loggedIn}>
           <RotaObjetivoProtegida>
             <InternalLayout>
-              <Dashboard />
+              <Dashboard objetivoId={objetivoId} />
             </InternalLayout>
           </RotaObjetivoProtegida>
         </RotaAutenticada>
@@ -201,9 +220,21 @@ function AppContent() {
 
       <Route path="/marcos" element={
         <RotaAutenticada loggedIn={loggedIn}>
+          <RotaObjetivoProtegida>
+            <InternalLayout>
+              <Objectives objetivoId={objetivoId} />
+            </InternalLayout>
+          </RotaObjetivoProtegida>
+        </RotaAutenticada>
+      } />
+
+      <Route path="/ajustes" element={
+        <RotaAutenticada loggedIn={loggedIn}>
+          <RotaObjetivoProtegida>
           <InternalLayout>
-            <GoalSelection />
+            <Settings objetivoId={objetivoId} />
           </InternalLayout>
+          </RotaObjetivoProtegida>
         </RotaAutenticada>
       } />
 
@@ -216,10 +247,12 @@ function AppContent() {
 // Export final com os Providers necessários
 export default function App() {
   return (
-    <ObjetivoProvider>
-      <HashRouter>
-        <AppContent />
-      </HashRouter>
-    </ObjetivoProvider>
+    <QueryClientProvider client={queryClient}>
+      <ObjetivoProvider>
+        <HashRouter>
+          <AppContent />
+        </HashRouter>
+      </ObjetivoProvider>
+    </QueryClientProvider>
   );
 }

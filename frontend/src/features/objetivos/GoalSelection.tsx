@@ -1,24 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Target, ChevronRight, X, Loader2 } from 'lucide-react'; // Adicionados ícones
+import { Plus, Target, ChevronRight, X, Loader2 } from 'lucide-react';
 import { supabase } from '../../api/supabase';
 import { useObjetivoAtivo } from '../../context/ObjetivoContext';
-import { Objective, Currency } from '../../types/types'; // Importando Currency para tipagem
+import { Objective, Currency } from '../../types/types';
+import { generateMilestones } from '../../services/geminiService';
 
 const GoalSelection: React.FC = () => {
   const [objetivos, setObjetivos] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Novo: controle de loading do botão
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { setObjetivoId } = useObjetivoAtivo();
   const navigate = useNavigate();
 
-  // Estados para o Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [valorMeta, setValorMeta] = useState('');
   const [moedaAlvo, setMoedaAlvo] = useState<Currency>('BRL');
   const [tipoMeta, setTipoMeta] = useState('Outro');
+  
   const hoje = new Date();
   const hoje_new = new Date(hoje);
   hoje_new.setDate(hoje.getDate() + 1);
@@ -45,42 +46,68 @@ const GoalSelection: React.FC = () => {
   const handleCriarObjetivo = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    console.log("Iniciando criação de objetivo...");
     
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessão expirada.");
 
-    // Correção: Se NÃO houver usuário, retornamos
-    if (!user) {
-      alert("Sessão expirada. Faça login novamente.");
-      return;
-    }
+      const valorNumerico = parseFloat(valorMeta.replace(/\./g, '').replace(',', '.'));
 
-    // Alinhando com os nomes exatos das colunas do seu banco 
-    const novoObjetivo = {
-      usuario_id: user.id,
-      titulo: titulo, 
-      descricao: descricao,
-      valor_meta: parseFloat(valorMeta),
-      moeda_alvo: moedaAlvo,
-      tipo: tipoMeta,
-      prazo_meta: prazoMeta,
-    };
+      const { data: objetivoSalvo, error: errorObj } = await supabase
+        .from('objetivos')
+        .insert([{
+          usuario_id: user.id,
+          titulo, 
+          descricao,
+          valor_meta: valorNumerico,
+          moeda_alvo: moedaAlvo,
+          tipo: tipoMeta,
+          prazo_meta: prazoMeta,
+        }])
+        .select()
+        .single();
 
-    const { error } = await supabase
-      .from('objetivos')
-      .insert([novoObjetivo]);
+      if (errorObj) throw errorObj;
+      console.log("Objetivo criado com ID:", objetivoSalvo.id);
 
-    if (!error) {
-      setTitulo(''); 
-      setDescricao('');
-      setValorMeta('');
+      // --- TENTATIVA DE IA ---
+      try {
+        console.log("Chamando IA para gerar marcos...");
+        const aiResult = await generateMilestones(
+          objetivoSalvo.titulo,
+          objetivoSalvo.descricao || '',
+          objetivoSalvo.valor_meta,
+          objetivoSalvo.moeda_alvo
+        );
+
+        if (aiResult && aiResult.length > 0) {
+          console.log("IA gerou marcos:", aiResult);
+          const marcosParaInserir = aiResult.map((m: any, index: number) => ({
+            objetivo_id: objetivoSalvo.id,
+            descricao: m.title,
+            atingido: false,
+            ordem: index
+          }));
+          
+          const { error: errorMarcos } = await supabase.from('marcos').insert(marcosParaInserir);
+          if (errorMarcos) throw errorMarcos;
+          console.log("Marcos inseridos com sucesso.");
+        }
+      } catch (aiErr) {
+        console.error("Erro na IA:", aiErr);
+        alert("O objetivo foi criado, mas a IA falhou ao gerar os marcos. Você pode gerá-los manualmente no painel.");
+      }
+
+      setTitulo(''); setDescricao(''); setValorMeta('');
       setIsModalOpen(false);
       fetchObjetivos(); 
-      setTipoMeta('Outro');
-      setPrazoMeta(iso);
-    } else {
-      alert("Erro ao criar: " + error.message);
+    } catch (err: any) {
+      console.error("Erro geral:", err);
+      alert("Erro ao criar objetivo: " + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const selecionar = (id: string) => {
@@ -108,7 +135,6 @@ const GoalSelection: React.FC = () => {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Card de Adicionar Novo - AGORA ATIVA O MODAL */}
           <button 
             onClick={() => setIsModalOpen(true)}
             className="group border-2 border-dashed border-emerald-200 rounded-[2.5rem] p-8 flex flex-col items-center justify-center gap-4 hover:border-emerald-500 hover:bg-white transition-all min-h-[250px]"
@@ -119,7 +145,6 @@ const GoalSelection: React.FC = () => {
             <span className="font-bold text-emerald-700 uppercase tracking-widest text-sm">Novo Objetivo</span>
           </button>
 
-          {/* Listagem de Objetivos */}
           {objetivos.map((obj) => (
             <div 
               key={obj.id}
@@ -155,14 +180,13 @@ const GoalSelection: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL - Fora do fluxo principal mas dentro da div root */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-emerald-900/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="bg-[#059669] p-8 flex justify-between items-center text-white">
               <div>
                 <h2 className="text-2xl font-bold">Novo Plano</h2>
-                <p className="text-emerald-100 text-sm">Configure sua próxima meta</p>
+                <p className="text-emerald-100 text-sm">A IA criará seus marcos automaticamente</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
                 <X size={24} />
@@ -186,47 +210,30 @@ const GoalSelection: React.FC = () => {
                     value={moedaAlvo} onChange={e => setMoedaAlvo(e.target.value as Currency)}
                     className="bg-emerald-50 border border-emerald-100 rounded-2xl px-3 outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="BRL">BRL (R$)</option>
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
+                    <option value="BRL">BRL</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
                   </select>
                   <input
                     type="text"
-                    inputMode="numeric"
                     required
                     placeholder="0,00"
                     value={valorMeta}
                     onChange={(e) => {
-                      let v = e.target.value.replace(/\D/g, ''); // só números
-
-                      if (v === '') {
-                        setValorMeta('');
-                        return;
-                      }
-
-                      // remove zeros à esquerda (mas deixa um se tudo for zero)
-                      v = v.replace(/^0+(?=\d)/, '');
-
-                      if (v.length === 1) {
-                        setValorMeta(`0,0${v}`);
-                      } else if (v.length === 2) {
-                        setValorMeta(`0,${v}`);
-                      } else {
-                        const inteiro = v.slice(0, -2);
-                        const decimal = v.slice(-2);
-                        setValorMeta(`${inteiro},${decimal}`);
-                      }
+                      let v = e.target.value.replace(/\D/g, '');
+                      if (v === '') { setValorMeta(''); return; }
+                      v = (parseInt(v) / 100).toFixed(2).replace('.', ',');
+                      setValorMeta(v.replace(/\B(?=(\d{3})+(?!\d))/g, "."));
                     }}
                     className="flex-1 bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4 text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
-
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-emerald-600 uppercase ml-2 mb-1 block">Tipo da Meta</label>
+                <label className="text-xs font-bold text-emerald-600 uppercase ml-2 mb-1 block">Tipo & Prazo</label>
                 <div className="flex gap-2">
-                <select 
+                  <select 
                     value={tipoMeta} onChange={e => setTipoMeta(e.target.value)}
                     className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 outline-none focus:ring-2 focus:ring-emerald-500"
                   >
@@ -239,7 +246,7 @@ const GoalSelection: React.FC = () => {
                     value={prazoMeta} onChange={e => setPrazoMeta(e.target.value)}
                     className="flex-1 bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4 text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
-              </div>
+                </div>
               </div>
 
               <div>
@@ -254,7 +261,7 @@ const GoalSelection: React.FC = () => {
               <button 
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-[#059669] hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-100 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                className="w-full bg-[#059669] hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Começar Planejamento'}
               </button>

@@ -9,6 +9,8 @@ export interface User {
 }
 
 export interface Objective {
+  description: ReactNode;
+  name: ReactNode;
   id: string;
   usuario_id: string;
   titulo: string;
@@ -57,4 +59,21 @@ export interface Document {
   tamanho?: string;
   status: 'pendente' | 'concluido';
   criado_em: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  nome: string;
+  permissao: 'admin' | 'ver' | 'editor';
+  moeda_padrao: Currency;
+  criado_em: string;
+}
+
+export interface Cambio {
+  id: number;
+  valor_br: number;
+  valor_usd: number;
+  valor_eur: number;
+  update_at: string;
 }

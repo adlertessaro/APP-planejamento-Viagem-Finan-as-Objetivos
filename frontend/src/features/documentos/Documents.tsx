@@ -125,7 +125,7 @@ const Documents: React.FC<DocumentsProps> = ({ objetivoSelecionado }) => {
         nome: newDoc.nome,
         categoria: newDoc.categoria,
         conteudo_base64: newDoc.conteudo_base64 || null,
-        tamanho: newDoc.conteudo_base64 ? newDoc.tamanho : 'Pendente',
+        tamanho: newDoc.conteudo_base64 ? newDoc.tamanho : '0 KB',
         status: 'pendente',
         tipo: newDoc.conteudo_base64 ? newDoc.tipo : 'Checklist'
       };

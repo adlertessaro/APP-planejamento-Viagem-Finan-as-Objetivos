@@ -4,7 +4,7 @@ import { Plus, Target, ChevronRight, X, Loader2 } from 'lucide-react';
 import { supabase } from '../../api/supabase';
 import { useObjetivoAtivo } from '../../context/ObjetivoContext';
 import { Objective, Currency } from '../../types/types';
-import { generateMilestones } from '../../services/geminiService';
+import { generateMilestones } from '../../../../api/geminiService';
 
 const GoalSelection: React.FC = () => {
   const [objetivos, setObjetivos] = useState<Objective[]>([]);
